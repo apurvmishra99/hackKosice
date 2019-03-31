@@ -30,7 +30,8 @@ from __future__ import division
 
 import re
 import sys
-
+from sys import argv
+from translator import translator
 from google.cloud import speech
 from google.cloud.speech import enums
 from google.cloud.speech import types
@@ -152,7 +153,8 @@ def listen_print_loop(responses):
 
         else:
             fil = open("out.txt", 'a+')
-            fil.write(transcript + overwrite_chars+'\n')
+            fil.write(translate(transcript + overwrite_chars+'\n', argv[2]))
+            fil.close
             print(transcript + overwrite_chars)
 
             # Exit recognition if any of the transcribed phrases could be
@@ -167,7 +169,7 @@ def listen_print_loop(responses):
 def main():
     # See http://g.co/cloud/speech/docs/languages
     # for a list of supported languages.
-    language_code = 'en-US'  # a BCP-47 language tag
+    language_code = argv[1]  # a BCP-47 language tag
 
     client = speech.SpeechClient()
     config = types.RecognitionConfig(

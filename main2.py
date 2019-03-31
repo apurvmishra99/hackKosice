@@ -173,7 +173,7 @@ def initial_video():
                 # Write microphone input
                 draw.text((100, 505), "Microphone: " + raw_input_data, font=font, fill=(255,255,255,0))
                 # Write Thai text
-                draw.text((75, 545),  "TH: " + translated_data['th'], font=font, fill=(255,255,255,0))
+                #draw.text((75, 545),  "TH: " + translated_data['th'], font=font, fill=(255,255,255,0))
                 # Write English text
                 draw.text((75, 585),  "EN: " + translated_data['en'], font=font, fill=(255,255,255,0))
                 # Write Deutsch text     
@@ -199,18 +199,18 @@ def initial_video():
 def text_translation(input_text="Hello"):
 
     # Translates text input to Thai
-    translation_th = translate_client.translate(input_text, target_language='th')
+    #translation_th = translate_client.translate(input_text, target_language='th')
     # Translates text input to Deutsch
-    translation_de = translate_client.translate(translation_th['translatedText'], target_language='de')
+    translation_de = translate_client.translate(input_text, target_language='de')
 
     print(u'Text input: {}'.format(input_text))
-    print(u'Translation to thai: {}'.format(translation_th['translatedText']))
+    #print(u'Translation to thai: {}'.format(translation_th['translatedText']))
     print(u'Translation to deutsch: {}'.format(translation_de['translatedText']))
 
     # Set global variable
     global translated_data
     global previous_raw_input_data
-    translated_data = {'en': input_text, 'th': translation_th['translatedText'].replace("&#39;", "'"), 'de': translation_de['translatedText'].replace("&#39;", "'")}
+    translated_data = {'en': input_text, 'de': translation_de['translatedText'].replace("&#39;", "'")}
     previous_raw_input_data = input_text
  
 def listen_print_loop(responses):
