@@ -25,51 +25,41 @@ Example usage:
     python transcribe_streaming_mic.py
 """
 
-# [START import_libraries]
+# [START speech_transcribe_streaming_mic]
 from __future__ import division
 
-import numpy as np
-import pyaudio
+from importlib import reload
+import os
+import random
 import re
 import sys
-import threading
-import time
-
-from PIL import ImageFont, ImageDraw, Image
-from google.cloud import translate
+from sys import argv
+from translator import translator
 from google.cloud import speech
 from google.cloud.speech import enums
 from google.cloud.speech import types
+import pyaudio
 from six.moves import queue
-# [END import_libraries]
 
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="autotranscribe.json"
+
+reload(sys)
 # Audio recording parameters
 RATE = 16000
 CHUNK = int(RATE / 10)  # 100ms
 
-# Instantiates a client
-translate_client = translate.Client()
-
-raw_input_data = 'listening...'
-previous_raw_input_data = None
-translated_data = None
-
 
 class MicrophoneStream(object):
     """Opens a recording stream as a generator yielding the audio chunks."""
-    
     def __init__(self, rate, chunk):
-        
         self._rate = rate
         self._chunk = chunk
-        self._audio_stream = None
 
         # Create a thread-safe buffer of audio data
         self._buff = queue.Queue()
         self.closed = True
 
     def __enter__(self):
-        
         self._audio_interface = pyaudio.PyAudio()
         self._audio_stream = self._audio_interface.open(
             format=pyaudio.paInt16,
@@ -88,7 +78,6 @@ class MicrophoneStream(object):
         return self
 
     def __exit__(self, type, value, traceback):
-        
         self._audio_stream.stop_stream()
         self._audio_stream.close()
         self.closed = True
@@ -99,22 +88,10 @@ class MicrophoneStream(object):
 
     def _fill_buffer(self, in_data, frame_count, time_info, status_flags):
         """Continuously collect data from the audio stream, into the buffer."""
-        
         self._buff.put(in_data)
         return None, pyaudio.paContinue
-    
-    def _clear_buffer(self):
-        
-        self._audio_stream.stop_stream()
-        self._audio_stream.close()
-        # self.closed = True
-        # Signal the generator to terminate so that the client's
-        # streaming_recognize method will not block the process termination.
-        self._buff.put(None)
-        self._audio_interface.terminate()
 
     def generator(self):
-
         while not self.closed:
             # Use a blocking get() to ensure there's at least one chunk of
             # data, and stop iteration if the chunk is None, indicating the
@@ -135,85 +112,8 @@ class MicrophoneStream(object):
                     break
 
             yield b''.join(data)
-# [END audio_stream]
 
-def initial_video():
 
-    import cv2
-    
-    # Inital text translation
-    text_translation()
-
-    # Start microphone stream threading
-    threading.Thread(target=main).start()
-
-    # Set camera
-    camera = cv2.VideoCapture(-1)
-    camera.set(3,1200)
-    camera.set(4,1200)
-
-    # Set font
-    fontpath = "Kanit-Regular.ttf"
-    font = ImageFont.truetype(fontpath, 32)
-
-    while True:
-        ret, frame = camera.read()
-        if ret:
-            if translated_data:
-                # Draw background of text
-                cv2.rectangle(frame, (0, 0), (1400, 40), (0,0,0), -1)
-                cv2.rectangle(frame, (70, 515), (1200, 545), (0,0,0), -1)                    
-                cv2.rectangle(frame, (70, 555), (1200, 585), (0,0,0), -1)
-                cv2.rectangle(frame, (70, 595), (1200, 625), (0,0,0), -1)
-                cv2.rectangle(frame, (70, 635), (1200, 665), (0,0,0), -1) 
-
-                # Set draw text frame
-                img_pil = Image.fromarray(frame)
-                draw = ImageDraw.Draw(img_pil)
-
-                # Write microphone input
-                draw.text((100, 505), "Microphone: " + raw_input_data, font=font, fill=(255,255,255,0))
-                # Write Thai text
-                draw.text((75, 545),  "TH: " + translated_data['th'], font=font, fill=(255,255,255,0))
-                # Write English text
-                draw.text((75, 585),  "EN: " + translated_data['en'], font=font, fill=(255,255,255,0))
-                # Write Deutsch text     
-                draw.text((75, 625),  "DE: " + translated_data['de'], font=font, fill=(255,255,255,0))
-                # Write demo text
-                #draw.text((20, -5),  "Demo", font=font, fill=(255,255,255,0))
-                # Write Date Time
-                draw.text((910, -5), time.strftime("%Y/%m/%d %H:%M:%S %Z", time.localtime()), font=font, fill=(255,255,255,0))   
-                # Write all text into frame
-                frame = np.array(img_pil)
-                # Draw green circle
-                frame = cv2.circle(frame, (85, 530), 6, (0,255,0), -1)
-               
-            # Display the resulting frame
-            cv2.imshow('Speech-to-Text Demo', frame)
-
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-
-    camera.release()
-    cv2.destroyAllWindows()
-
-def text_translation(input_text="Hello"):
-
-    # Translates text input to Thai
-    translation_th = translate_client.translate(input_text, target_language='th')
-    # Translates text input to Deutsch
-    translation_de = translate_client.translate(translation_th['translatedText'], target_language='de')
-
-    print(u'Text input: {}'.format(input_text))
-    print(u'Translation to thai: {}'.format(translation_th['translatedText']))
-    print(u'Translation to deutsch: {}'.format(translation_de['translatedText']))
-
-    # Set global variable
-    global translated_data
-    global previous_raw_input_data
-    translated_data = {'en': input_text, 'th': translation_th['translatedText'].replace("&#39;", "'"), 'de': translation_de['translatedText'].replace("&#39;", "'")}
-    previous_raw_input_data = input_text
- 
 def listen_print_loop(responses):
     """Iterates through server responses and prints them.
 
@@ -229,7 +129,6 @@ def listen_print_loop(responses):
     the next result to overwrite it, until the response is a final one. For the
     final one, print a newline to preserve the finalized transcription.
     """
-
     num_chars_printed = 0
     for response in responses:
         if not response.results:
@@ -244,11 +143,6 @@ def listen_print_loop(responses):
 
         # Display the transcription of the top alternative.
         transcript = result.alternatives[0].transcript
-        print('Microphone input: ' + transcript)
-
-        # Assign raw input
-        global raw_input_data
-        raw_input_data = transcript
 
         # Display interim results, but with a carriage return at the end of the
         # line, so subsequent lines will overwrite them.
@@ -257,33 +151,6 @@ def listen_print_loop(responses):
         # some extra spaces to overwrite the previous result
         overwrite_chars = ' ' * (num_chars_printed - len(transcript))
 
-        # if len(raw_input_data) >= 15:
-        #     sys.stdout.write(transcript + overwrite_chars + '\r')
-        #     sys.stdout.flush()
-
-        #     num_chars_printed = len(transcript)
-
-        #     print('Send to translate !')
-
-        #     text_translation(transcript + overwrite_chars)
-
-        ########################
-        #      NEW VERSION     #
-        ########################
-        print(result.stability)
-        if result.stability >= 0.899:
-            resp = transcript + overwrite_chars
-            text_translation(resp)
-            MicrophoneStream(RATE, CHUNK)._clear_buffer()
-        else:
-            sys.stdout.write(transcript + overwrite_chars + '\r')
-            sys.stdout.flush()
-            
-            num_chars_printed = len(transcript)
-
-        ########################
-        #      OLD VERSION     #
-        ########################
         # if not result.is_final:
         #     sys.stdout.write(transcript + overwrite_chars + '\r')
         #     sys.stdout.flush()
@@ -291,15 +158,34 @@ def listen_print_loop(responses):
         #     num_chars_printed = len(transcript)
 
         # else:
+            
+        #     fil = open("out.txt", 'a+')
+            
+        #     fil.write(transcript + overwrite_chars+'\n')
         #     print(transcript + overwrite_chars)
-        #     resp = transcript + overwrite_chars
-        #     text_translation(resp)
 
-            # Exit recognition if any of the transcribed phrases could be
-            # one of our keywords.
+        #     # Exit recognition if any of the transcribed phrases could be
+        #     # one of our keywords.
+        print(result.stability)
+        if result.stability >= 0.5:
+            resp = transcript + overwrite_chars
+            translated = translator(resp, 'sk')
+            print(translated)
+            fil = open("out.txt", 'a+')
+            fil.write(translated + '\n')
+            #MicrophoneStream(RATE, CHUNK)._clear_buffer()
+        else:
+            sys.stdout.write(transcript + overwrite_chars + '\r')
+            sys.stdout.flush()
+            
+            num_chars_printed = len(transcript)
+            
             if re.search(r'\b(exit|quit)\b', transcript, re.I):
                 print('Exiting..')
                 break
+
+            #num_chars_printed = 0
+
 
 def main():
     # See http://g.co/cloud/speech/docs/languages
@@ -315,23 +201,34 @@ def main():
         config=config,
         interim_results=True)
 
-    rounds = 1
-    while True:
-        try:
-            print('streaming loop :' + str(rounds))
-            with MicrophoneStream(RATE, CHUNK) as stream:
-                audio_generator = stream.generator()
-                # Create request data
-                requests = (types.StreamingRecognizeRequest(audio_content=content)
-                            for content in audio_generator)
-                # POST data to google cloud speech
-                responses = client.streaming_recognize(streaming_config, requests)
-                # Now, put the transcription responses to use.
-                listen_print_loop(responses)
-        except Exception as err:
-            print(err)
-            rounds = rounds + 1
+    # with MicrophoneStream(RATE, CHUNK) as stream:
+    #     audio_generator = stream.generator()
+    #     requests = (types.StreamingRecognizeRequest(audio_content=content)
+    #                 for content in audio_generator)
+
+    #     responses = client.streaming_recognize(streaming_config, requests)
+
+    #     # Now, put the transcription responses to use.
+    #     listen_print_loop(responses)
+    with MicrophoneStream(RATE, CHUNK) as stream:
+        audio_generator = stream.generator()
+        requests = (types.StreamingRecognizeRequest(audio_content=content)
+                    for content in audio_generator)
+        try: 	
+        	responses = client.streaming_recognize(streaming_config, requests)
+        except Exception as exception:
+        # Output unexpected Exceptions.
+        	print("exception exception exception exception exception ")
+
+        # Now, put the transcription responses to use.
+        try: 
+            listen_print_loop(responses)
+        except Exception as exception:
+        # Output unexpected Exceptions.
+        	print("Excption handle : Exceeded maximum allowed stream duration of 65 seconds")
 
 
 if __name__ == '__main__':
-    initial_video()
+    while True:
+        main()
+# [END speech_transcribe_streaming_mic]

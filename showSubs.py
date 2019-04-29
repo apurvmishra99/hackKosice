@@ -11,9 +11,8 @@ def get_text(root, val, name):
     except IOError as e:
         print(e)
     else:
-        # schedule the function to be run again after 1000 milliseconds
-        root.after(1000, lambda: get_text(root, val, name))
-
+        # schedule the function to be run again after 100 milliseconds
+        root.after(100, lambda: get_text(root, val, name))
 
 root = Tk()
 root.title("Transcription")
@@ -25,11 +24,11 @@ root.wm_attributes("-topmost", True)
 root.wm_attributes("-alpha", 0.0)
 # Set the root window background color to a transparent color
 root.config(bg='white')
-root.geometry("+700+300")
+# root.geometry("+150+100")
 get_text(root, eins, "out.txt")
 label = Label(root, textvariable=eins)
 # Set the label background color to a transparent color
-label.config(bg='white', font=('times', 37))
+label.config(bg='white', font=('times', 15))
 label.pack()
 # root.wm_attributes('-alpha', 0.9)
 #root.minsize(740, 400)
